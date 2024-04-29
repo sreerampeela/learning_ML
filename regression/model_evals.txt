@@ -1,4 +1,6 @@
-## full data
+### using car price prediction data
+
+## full data (carPrice_multipleRegression)
 Mean squared error: 6519944.098554553
 Mean absolute error: 2063.2382638479153
 R2: 0.6923750066762547
@@ -9,7 +11,7 @@ Regression coefficient: [[  668.74278257 -1239.30308609  1187.18296257   642.849
     785.16733028]]
 Intercept: [13666.38752761]
 
-## removing low correlated features
+## removing low correlated features (carPrice_better: part I)
 Mean squared error: 7865454.425944087
 Mean absolute error: 2156.8395355421376
 R2: 0.6288909339259994
@@ -18,7 +20,7 @@ Regression coefficient: [[ -83.00787472 1436.0711598  1249.3825536  3790.8911947
    695.76649832 -435.33208504]]
 Intercept: [13666.38752761]
 
-## removing collinear variables
+## removing collinear variables (carPrice_better: part II)
 Mean squared error: 6903294.447806446
 Mean absolute error: 2116.4903506146693
 R2: 0.6691344500203003
