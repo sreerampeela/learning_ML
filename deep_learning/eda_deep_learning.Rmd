@@ -1,0 +1,187 @@
+---
+title: "deep_learning_eda"
+author: "Sreeram Peela"
+date: "2024-05-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+The file contains exploratory data analysis (EDA) of "Churn modelling" dataset.
+The dependent feature is "Exited", while all the other features are considered
+features. Prior to usig the dataset for classification problems, I would like to
+perform a biref statistical analysis.
+
+The goal is to identify features that are significantly different in the groups:
+exited (encoded as 1) and not-exited (encoded as 0). For the purpose of EDA, the
+original datafile is used, and not the cleaned one (with scaled data).
+
+```{r, echo=T}
+## load required packages
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+```
+
+Loading the dataset
+```{r}
+df <- read.csv("Churn_Modelling.csv", stringsAsFactors = T)
+```
+
+Performing some feature recoding:
+Some of the binary/categorical features are encoded as 0 and 1.
+```{r, echo=T}
+#removing customer id and surname features as they are not relevant
+df <- select(df, -c(1,2))
+summary(df)
+```
+```{r, echo=T}
+#recoding as factors
+df$NumOfProducts <- as.factor(df$NumOfProducts)
+df$HasCrCard <- as.factor(df$HasCrCard)
+df$IsActiveMember <- as.factor(df$IsActiveMember)
+summary(df)
+```
+```{r, echo=T}
+cat_results <- list(pvalues = c(), odds_ratio = c(), feature_names = c())
+#using fisher test or chisquare test for categorical associations
+cat_features <- c(2,3,7,8,9)
+for (i in cat_features) {
+  unique_cats <- unique(df[ , i])
+  cross_tab <- table(df[ , i], df[ , "Exited"])
+  colName <- colnames(df)[i]
+  cat_results$feature_names <- c(cat_results$feature_names, colName )
+  #cat_results$cont_tables <- c(cat_results$cont_tables, matrix(cross_tab,
+                              #nrow=nrow(cross_tab), ncol = ncol(cross_tab)))
+  if (length(unique_cats) == 2) {
+    # run Fisher test
+    fisher_test <- fisher.test(cross_tab, conf.int = TRUE, conf.level = 0.95)
+    cat_results$pvalues <- c(cat_results$pvalues, fisher_test$p.value)
+    cat_results$odds_ratio <- c(cat_results$odds_ratio, fisher_test$estimate)
+    #cat_results$odd_ratio_CI <- c(cat_results$odd_ratio_CI, fisher_test$conf.int)
+    
+  } else {
+    # run chisquare test
+    # no odds ratio for chi-square test
+    chi_test <- chisq.test(cross_tab)
+    cat_results$pvalues <- c(cat_results$pvalues, chi_test$p.value)
+    cat_results$odds_ratio <- c(cat_results$odds_ratio, NA)
+    #cat_results$odd_ratio_CI <- c(cat_results$odd_ratio_CI, c(NA, NA))
+    
+  }
+}
+print(cat_results)
+```
+```{r, echo=T}
+cat_results_df <- data.frame("feature" = cat_results$feature_names, 
+                             "pval" = cat_results$pvalues,
+                             "odds" = round(cat_results$odds_ratio, 3))
+sign_features <- cat_results_df[cat_results_df$pval<0.05, "feature"]
+print(sign_features)
+
+```
+From the above observation, has card doesn't seem to be associated with exited status.
+
+Performing EDA using continuous variables
+
+```{r, echo=T}
+cont_features <- c(1,4,5,6,10)
+shapiro_results <- list("pvalue" = c(), "feature" = c())
+#checking normality assumptions
+# using Anderson-Darling normality test as n_samples > 5000
+library(nortest)
+for (i in cont_features) {
+  pval <- ad.test(df[ , i])$p.value
+  colname <- colnames(df)[i]
+  shapiro_results$pvalue <- c(shapiro_results$pvalue, pval)
+  shapiro_results$feature <- c(shapiro_results$feature, colname)
+}
+
+print(shapiro_results)
+  
+```
+As seen from above, none of the variables are normally distributed. Using correlation to detect collinear variables
+
+```{r, echo=T}
+df_cont <- select(df, cont_features)
+cor_matrix <- cor(df_cont)
+print(cor_matrix)
+pairs(df_cont)
+```
+```{r, echo=T}
+df_cont$Exited <- df$Exited
+levels(df_cont$Exited)[levels(df_cont$Exited) == "1"] <- "YES"
+levels(df_cont$Exited)[levels(df_cont$Exited) == "0"] <- "NO"
+
+```
+
+
+Using Mann-Whitney test for two groups comparison
+As wilcox.test is the function used
+
+```{r, echo=T}
+pvals = c()
+var_names = c()
+for (i in 1:4) {
+  varname = colnames(df_cont)[i]
+  ind_var <- df_cont[ , i]
+  stat_test <- wilcox.test(ind_var~df_cont$Exited)
+  var_names <- c(var_names, varname)
+  pvals <- c(pvals, stat_test$p.value)
+  
+}
+
+cont_res <- list("pvals"=pvals, "feature" = var_names)
+
+```
+
+
+Generating box plots
+```{r, echo=T}
+# drawing boxplots
+cont_vars <- colnames(df_cont)[1:4]
+library(ggpubr)
+library(gridGraphics)
+# we have four continuous features
+# creating a 2x2 plot
+#par(mfrow=c(2,2))
+plot1 <- boxplot(df$EstimatedSalary ~ df$Exited, xlab = "Exited", 
+                 ylab = "Estimated salary")
+plot2 <- boxplot(df$CreditScore ~ df$Exited, xlab = "Exited", 
+                 ylab = "Credit score")
+plot3 <- boxplot(df$Balance ~ df$Exited, xlab = "Exited", 
+                 ylab = "Balance")
+plot4 <- boxplot(df$Tenure ~ df$Exited, xlab = "Exited", 
+                 ylab = "Tenure")
+plot5 <- boxplot(df$Age ~ df$Exited, xlab = "Exited", 
+                 ylab = "Age")
+```
+```{r, echo=T}
+pvals = c()
+var_names = c()
+for (i in 1:4) {
+  varname = colnames(df_cont)[i]
+  ind_var <- df_cont[ , i]
+  stat_test <- wilcox.test(ind_var~df_cont$Exited)
+  var_names <- c(var_names, varname)
+  pvals <- c(pvals, stat_test$p.value)
+  
+}
+
+cont_res <- list("pvals"=pvals, "feature" = var_names)
+
+
+
+```
+
+```{r, echo=T}
+cont_res_df <- data.frame("feature" = cont_res$feature, "pval" = cont_res$pvals)
+cont_res_df[cont_res_df$pval < 0.05, "feature"]
+
+```
+
+Interpretation: As seen from the above results, only these three variables were 
+significantly different among those exited and non-exited.
